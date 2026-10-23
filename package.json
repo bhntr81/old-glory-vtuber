@@ -1,0 +1,15 @@
+{
+  "name": "old-glory-vtuber",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A layered, browser-driven VTuber rig and VRM 1.0 export built from a single illustration.",
+  "homepage": "https://bhntr81.github.io/old-glory-vtuber/",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "build:layers": "python3 tools/build_layers.py",
+    "build:vrm": "python3 tools/build_vrm.py",
+    "build": "npm run build:layers && npm run build:vrm"
+  },
+  "license": "MIT",
+  "keywords": ["vtuber", "vrm", "gltf", "live2d", "canvas", "avatar"]
+}

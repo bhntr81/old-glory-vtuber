@@ -1,0 +1,143 @@
+{
+  "name": "Old Glory",
+  "source": {
+    "width": 1024,
+    "height": 1536
+  },
+  "pivots": {
+    "head": [
+      516,
+      566
+    ],
+    "hat": [
+      516,
+      250
+    ],
+    "body": [
+      516,
+      1150
+    ],
+    "cape": [
+      516,
+      546
+    ],
+    "arm_left": [
+      300,
+      800
+    ],
+    "arm_right": [
+      820,
+      930
+    ],
+    "cane": [
+      130,
+      1010
+    ]
+  },
+  "layers": [
+    {
+      "id": "backfill",
+      "file": "assets/layers/backfill.png",
+      "x": 241,
+      "y": 371,
+      "w": 551,
+      "h": 469,
+      "pivot": [
+        275,
+        195
+      ],
+      "z": 0
+    },
+    {
+      "id": "cape",
+      "file": "assets/layers/cape.png",
+      "x": 218,
+      "y": 310,
+      "w": 668,
+      "h": 556,
+      "pivot": [
+        298,
+        236
+      ],
+      "z": 1
+    },
+    {
+      "id": "body",
+      "file": "assets/layers/body.png",
+      "x": 180,
+      "y": 688,
+      "w": 723,
+      "h": 848,
+      "pivot": [
+        336,
+        462
+      ],
+      "z": 2
+    },
+    {
+      "id": "arm_left",
+      "file": "assets/layers/arm_left.png",
+      "x": 26,
+      "y": 722,
+      "w": 339,
+      "h": 300,
+      "pivot": [
+        274,
+        78
+      ],
+      "z": 3
+    },
+    {
+      "id": "cane",
+      "file": "assets/layers/cane.png",
+      "x": 75,
+      "y": 945,
+      "w": 108,
+      "h": 591,
+      "pivot": [
+        55,
+        65
+      ],
+      "z": 4
+    },
+    {
+      "id": "arm_right",
+      "file": "assets/layers/arm_right.png",
+      "x": 696,
+      "y": 846,
+      "w": 206,
+      "h": 490,
+      "pivot": [
+        124,
+        84
+      ],
+      "z": 5
+    },
+    {
+      "id": "head",
+      "file": "assets/layers/head.png",
+      "x": 282,
+      "y": 186,
+      "w": 404,
+      "h": 466,
+      "pivot": [
+        234,
+        380
+      ],
+      "z": 6
+    },
+    {
+      "id": "hat",
+      "file": "assets/layers/hat.png",
+      "x": 264,
+      "y": 24,
+      "w": 495,
+      "h": 236,
+      "pivot": [
+        252,
+        226
+      ],
+      "z": 7
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Old Glory — browser VTuber rig</title>
+    <meta name="description" content="A layered, mouse-and-microphone driven VTuber rig built from a single illustration." />
+    <meta name="theme-color" content="#131211" />
+    <link rel="stylesheet" href="src/style.css" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="loading">
+    <div id="loader" aria-hidden="true"><span></span></div>
+
+    <div id="stage-wrap">
+      <canvas id="stage"></canvas>
+    </div>
+
+    <header>
+      <h1>Old Glory</h1>
+      <p>Move your cursor · talk to animate · H hides the UI</p>
+    </header>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <div class="dock" role="toolbar" aria-label="Model controls">
+      <button id="btn-mic" aria-pressed="false" title="Microphone lip-sync">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="label">Mic</span>
+        <span class="key">C</span>
+      </button>
+
+      <div class="sens">
+        <label for="sens">Sens</label>
+        <input id="sens" type="range" min="0.6" max="6" step="0.1" value="2.2" />
+      </div>
+
+      <div class="sep" aria-hidden="true"></div>
+
+      <button id="btn-bg" title="Cycle background (M)">
+        <span id="bg-name">studio</span>
+        <span class="key">M</span>
+      </button>
+
+      <button id="btn-mirror" title="Mirror the model">Mirror</button>
+      <button id="btn-reset" title="Reset zoom and pose">
+        Reset
+        <span class="key">R</span>
+      </button>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+  </body>
+</html>
