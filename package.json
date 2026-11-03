@@ -8,8 +8,19 @@
     "start": "python3 -m http.server 8000",
     "build:layers": "python3 tools/build_layers.py",
     "build:vrm": "python3 tools/build_vrm.py",
-    "build": "npm run build:layers && npm run build:vrm"
+    "build": "npm run build:layers && npm run build:vrm",
+    "check:alpha": "python3 tools/check_alpha.py",
+    "test": "node --test \"tests/*.test.mjs\"",
+    "test:e2e": "node tests/e2e.mjs"
   },
   "license": "MIT",
-  "keywords": ["vtuber", "vrm", "gltf", "live2d", "canvas", "avatar"]
+  "keywords": [
+    "vtuber",
+    "vrm",
+    "gltf",
+    "live2d",
+    "canvas",
+    "avatar"
+  ],
+  "type": "module"
 }

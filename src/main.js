@@ -1,5 +1,8 @@
 import { VtuberRig } from "./rig.js";
 import { Mic } from "./mic.js";
+import { FaceTracker } from "./face.js";
+import { Blink } from "./blink.js";
+import { faceToPose, pointerFromEvent } from "./mapping.js";
 
 const params = new URLSearchParams(location.search);
 
@@ -11,10 +14,45 @@ const BG_MODES = {
   none: "transparent",
 };
 
+const STORE_KEY = "old-glory:settings";
+
 const canvas = document.getElementById("stage");
 const ctx = canvas.getContext("2d", { alpha: true });
 const stage = document.getElementById("stage-wrap");
 const toast = document.getElementById("toast");
+const facePanel = document.getElementById("face-panel");
+const facePreview = document.getElementById("face-preview");
+const faceStatus = document.getElementById("face-status");
+const faceHint = document.getElementById("face-hint");
+
+/* -------------------------------------------------------------- settings */
+
+const settings = {
+  faceSensitivity: 1,
+  faceLimit: 1,
+  micSensitivity: 2.2,
+};
+
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
+    if (Number.isFinite(saved.faceSensitivity)) settings.faceSensitivity = saved.faceSensitivity;
+    if (Number.isFinite(saved.faceLimit)) settings.faceLimit = saved.faceLimit;
+    if (Number.isFinite(saved.micSensitivity)) settings.micSensitivity = saved.micSensitivity;
+  } catch (_) {
+    /* storage is optional */
+  }
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(settings));
+  } catch (_) {
+    /* private mode, ignore */
+  }
+}
+
+loadSettings();
 
 const state = {
   pointer: {
@@ -25,14 +63,20 @@ const state = {
   zoom: 1,
   bg: params.get("bg") || "studio",
   mic: false,
+  face: false,
+  roll: 0,
   mirror: params.get("mirror") === "1",
   demo: params.get("demo") === "1",
   ui: params.get("ui") !== "0",
   energy: 1,
+  lastBlinkShade: 0,
 };
 
 let rig = null;
 const mic = new Mic();
+const face = new FaceTracker();
+const blink = new Blink();
+mic.sensitivity = settings.micSensitivity;
 
 /* ---------------------------------------------------------------- assets */
 
@@ -97,7 +141,39 @@ function say(msg) {
   toast.textContent = msg;
   toast.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
+}
+
+const STATUS_TEXT = {
+  idle: ["Camera off", "F starts tracking"],
+  loading: ["Starting…", "Allow the camera when asked"],
+  searching: ["Looking for a face", "Sit facing the camera"],
+  tracking: ["Tracking", "Head turns the mask · X re-centres"],
+  error: ["Camera error", ""],
+};
+
+let lastStatusKey = "";
+function refreshFaceStatus(force = false) {
+  const key = face.loading ? "loading" : face.status;
+  if (key === lastStatusKey && !force) return;
+  lastStatusKey = key;
+  const [label, hint] = STATUS_TEXT[key] || STATUS_TEXT.idle;
+  faceStatus.textContent = key === "error" ? "Camera error" : label;
+  faceStatus.dataset.state = key;
+  faceHint.textContent = key === "error" ? face.error : hint;
+  const active = state.face || face.loading;
+  facePanel.hidden = !active && key !== "error";
+  if (key === "error") facePanel.hidden = false;
+  const btn = document.getElementById("btn-face");
+  btn.classList.toggle("on", active);
+  btn.setAttribute("aria-pressed", String(active));
+  btn.querySelector(".label").textContent = face.loading
+    ? "Starting"
+    : state.face
+      ? key === "tracking"
+        ? "Tracked"
+        : "Searching"
+      : "Face";
 }
 
 function refreshUI() {
@@ -107,12 +183,55 @@ function refreshUI() {
   micBtn.querySelector(".label").textContent = state.mic ? "Listening" : "Mic";
   document.getElementById("btn-mirror").classList.toggle("on", state.mirror);
   document.getElementById("bg-name").textContent = state.bg;
+  lastStatusKey = "";
+  refreshFaceStatus(true);
 }
 
 function cycleBackground() {
   const keys = Object.keys(BG_MODES);
   state.bg = keys[(keys.indexOf(state.bg) + 1) % keys.length];
   applyBackground();
+  refreshUI();
+}
+
+async function toggleFace() {
+  if (state.face) {
+    face.stop();
+    state.face = false;
+    state.roll = 0;
+    state.pointer.x = state.pointer.y = 0;
+    state.lastBlinkShade = 0;
+    facePreview.replaceChildren();
+    refreshUI();
+    say("Face tracking off — neutral pose");
+    return;
+  }
+  if (face.loading) {
+    say("Camera is still starting…");
+    return;
+  }
+  say("Starting camera…");
+  // start() sets loading synchronously before its first await, so the panel can
+  // show "Starting…" during the permission prompt and model download.
+  const starting = face.start();
+  refreshFaceStatus(true);
+  try {
+    const ok = await starting;
+    if (!ok) {
+      refreshUI();
+      return;
+    }
+    state.face = true;
+    if (face.video) facePreview.replaceChildren(face.video);
+    say("Look at the camera. Head pose drives the model.");
+  } catch (e) {
+    console.error(e);
+    state.face = false;
+    state.roll = 0;
+    state.pointer.x = state.pointer.y = 0;
+    state.lastBlinkShade = 0;
+    say(face.error || "Camera blocked or unavailable.");
+  }
   refreshUI();
 }
 
@@ -133,6 +252,8 @@ function wireUI() {
     refreshUI();
   });
 
+  document.getElementById("btn-face").addEventListener("click", toggleFace);
+
   document.getElementById("btn-mirror").addEventListener("click", () => {
     state.mirror = !state.mirror;
     if (rig) rig.mirror = state.mirror;
@@ -149,17 +270,42 @@ function wireUI() {
   });
 
   const sens = document.getElementById("sens");
+  sens.value = String(settings.micSensitivity);
   sens.addEventListener("input", () => {
     mic.sensitivity = parseFloat(sens.value);
+    settings.micSensitivity = mic.sensitivity;
+    saveSettings();
   });
 
+  const faceSens = document.getElementById("face-sens");
+  const faceLimit = document.getElementById("face-limit");
+  faceSens.value = String(settings.faceSensitivity);
+  faceLimit.value = String(settings.faceLimit);
+  faceSens.addEventListener("input", () => {
+    settings.faceSensitivity = parseFloat(faceSens.value);
+    saveSettings();
+  });
+  faceLimit.addEventListener("input", () => {
+    settings.faceLimit = parseFloat(faceLimit.value);
+    saveSettings();
+    say(`Head range ${Math.round(settings.faceLimit * 100)}%`);
+  });
+
+  document.getElementById("btn-center").addEventListener("click", () => {
+    face.recenter();
+    say("Head pose centred");
+  });
+
+  // The cursor is the fallback driver; it must not fight the webcam.
   stage.addEventListener("pointermove", (e) => {
+    if (state.face) return;
     const r = stage.getBoundingClientRect();
-    state.pointer.x = ((e.clientX - r.left) / r.width - 0.5) * 2.4;
-    state.pointer.y = ((e.clientY - r.top) / r.height - 0.5) * 1.8;
+    const p = pointerFromEvent((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+    state.pointer.x = p.x;
+    state.pointer.y = p.y;
   });
   stage.addEventListener("pointerleave", () => {
-    state.pointer.x = state.pointer.y = 0;
+    if (!state.face) state.pointer.x = state.pointer.y = 0;
   });
 
   stage.addEventListener(
@@ -173,31 +319,69 @@ function wireUI() {
   );
 
   window.addEventListener("keydown", (e) => {
-    if (e.key === "h") {
+    if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+    const k = e.key.toLowerCase();
+    if (k === "h") {
       state.ui = !state.ui;
       document.body.classList.toggle("hide-ui", !state.ui);
     }
-    if (e.key === "m") cycleBackground();
-    if (e.key === "c") document.getElementById("btn-mic").click();
-    if (e.key === "r") document.getElementById("btn-reset").click();
+    if (k === "m") cycleBackground();
+    if (k === "c") document.getElementById("btn-mic").click();
+    if (k === "f") document.getElementById("btn-face").click();
+    if (k === "r") document.getElementById("btn-reset").click();
+    if (k === "x") document.getElementById("btn-center").click();
+    if (k === "b") blink.trigger();
   });
 
   window.addEventListener("resize", resize);
+
+  // Never leave the camera light on after the page goes away.
+  window.addEventListener("pagehide", () => {
+    face.stop();
+    mic.stop();
+  });
 }
 
 /* ----------------------------------------------------------------- loop */
 
 let last = performance.now();
 function loop(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
   last = now;
 
   let talk = 0;
   if (state.mic) talk = mic.read();
   else if (state.demo) talk = Math.max(0, Math.sin(now / 95) * 0.6 + Math.sin(now / 41) * 0.35);
 
+  if (state.face) {
+    const pose = face.update(now);
+    if (pose.present) {
+      const mapped = faceToPose(pose, {
+        sensitivity: settings.faceSensitivity,
+        limit: settings.faceLimit,
+      });
+      state.pointer.x = mapped.x;
+      state.pointer.y = mapped.y;
+      state.roll = mapped.roll;
+
+      // Rising edge only: a blink held over several frames is one blink.
+      if (pose.blink > 0.55 && state.lastBlinkShade <= 0.55) blink.trigger();
+      state.lastBlinkShade = pose.blink;
+    }
+  }
+  // Keep the "Starting…" state visible while getUserMedia/MediaPipe load.
+  if (state.face || face.loading) refreshFaceStatus();
+
+  const eyes = blink.update(dt);
+
   if (rig) {
-    rig.update(dt, { pointer: state.pointer, talk, energy: state.energy });
+    rig.update(dt, {
+      pointer: state.pointer,
+      talk,
+      energy: state.energy,
+      roll: state.roll,
+      eyes,
+    });
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     rig.draw(ctx, state.view);
   }

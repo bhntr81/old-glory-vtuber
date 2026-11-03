@@ -24,10 +24,12 @@ SILHOUETTE = [
     (888, 1030), (886, 1084), (884, 1138), (886, 1192), (882, 1244), (870, 1290),
     (856, 1330), (848, 1372), (842, 1414), (836, 1456), (832, 1498), (828, 1536),
     # bottom
-    (168, 1536),
+    (145, 1536),
     # cane shaft, left hand, cuff, left shoulder
-    (158, 1470), (150, 1404), (142, 1338), (134, 1272), (126, 1206),
-    (118, 1140), (110, 1080), (102, 1048), (84, 1028), (56, 1018), (32, 998),
+    # The silhouette must sit *outside* the cane shaft, not through it: at the
+    # old x the polygon sliced the rod in half and the matte erased it.
+    (116, 1470), (108, 1404), (101, 1338), (94, 1272), (88, 1206),
+    (82, 1140), (78, 1080), (74, 1048), (66, 1028), (56, 1018), (32, 998),
     (20, 966), (18, 930), (26, 898), (44, 872), (74, 858), (108, 852),
     (144, 852), (174, 842), (194, 818), (202, 786), (208, 748), (212, 706),
     (216, 662), (228, 618), (242, 574), (258, 528), (278, 482), (302, 442),
@@ -58,6 +60,10 @@ HAT = [
      (600, 150), (660, 158), (710, 170), (748, 182), (754, 200), (724, 218),
      (690, 236), (652, 250), (600, 254), (540, 248), (470, 244), (410, 246),
      (360, 254), (320, 254), (290, 246)],
+    # Red-band overlap. The crown and brim polygons used to stop short of each
+    # other, leaving a transparent horizontal strip across the hat. This band
+    # bridges them; it contains only hat pixels and the silhouette clips the ends.
+    [(338, 142), (626, 142), (626, 205), (338, 205)],
 ]
 
 # Flag cape over both shoulders. Draws in front of the arms, behind the head.
@@ -113,7 +119,9 @@ CANE = [
 # Pivot points in source pixels (where each part rotates from).
 PIVOTS = {
     "head": (516, 566),   # base of the hood / neck
-    "hat": (516, 250),    # brim centre
+    # The hat is rigidly attached to the head: it must share the neck pivot or
+    # the two layers shear apart the moment the head turns.
+    "hat": (516, 566),
     "body": (516, 1150),  # waist
     "cape": (516, 546),   # collar
     "arm_left": (300, 800),
@@ -122,12 +130,22 @@ PIVOTS = {
 }
 
 # Draw order, back to front. (layer id, feather radius)
+# Interior boundaries get a wide feather: neighbouring layers hold identical
+# pixels, so a soft ramp is invisible at rest and hides the seam when parts move.
 LAYERS = [
-    ("cape", 4.0),
-    ("body", 2.5),
-    ("arm_left", 2.5),
-    ("cane", 2.0),
-    ("arm_right", 2.5),
-    ("head", 2.5),
-    ("hat", 2.2),
+    ("cape", 11.0),
+    ("body", 9.0),
+    ("arm_left", 9.0),
+    ("cane", 7.0),
+    ("arm_right", 9.0),
+    ("head", 10.0),
+    ("hat", 7.0),
 ]
+
+# The hat is solid cloth, not smoke. The matte sometimes reads pale stars and
+# the crown/brim seam as background, leaving translucent holes that show green
+# through the hat. Fill an eroded copy of the hand-authored HAT polygon; the
+# outer feather is untouched, so the smoky silhouette remains.
+SOLID_CORE_ERODE = {
+    "hat": 8,
+}

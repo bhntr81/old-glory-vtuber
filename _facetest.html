@@ -1,0 +1,67 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#222;color:#fff;font:13px monospace}
+#wrap{display:flex}#stage{width:520px;height:780px}
+#hud{position:absolute;left:530px;top:8px;white-space:pre;font-size:14px}
+</style></head><body>
+<canvas id="stage" width="520" height="780"></canvas>
+<div id="hud">booting</div>
+<script type="module">
+import { VtuberRig } from "/src/rig.js";
+import { FaceTracker } from "/src/face.js";
+
+const hud = document.getElementById("hud");
+const rot = parseFloat(new URLSearchParams(location.search).get("rot") || "0");
+
+// Fake camera: a photo on a canvas, rotated, exposed as a MediaStream.
+const src = new Image(); src.src = "/_face.jpg"; await src.decode();
+const cam = document.createElement("canvas"); cam.width = 640; cam.height = 480;
+const cctx = cam.getContext("2d");
+function drawCam() {
+  cctx.fillStyle = "#666"; cctx.fillRect(0, 0, 640, 480);
+  cctx.save(); cctx.translate(320, 240); cctx.rotate(rot * Math.PI / 180);
+  const s = Math.min(480 / src.width, 480 / src.height);
+  cctx.drawImage(src, -src.width * s / 2, -src.height * s / 2, src.width * s, src.height * s);
+  cctx.restore();
+  requestAnimationFrame(drawCam);
+}
+drawCam();
+
+const tracker = new FaceTracker();
+await tracker.startWithStream(cam.captureStream(30));
+tracker.neutral = { yaw: 0, pitch: 0, roll: 0 };
+tracker._calibration.length = 24;
+
+const data = await (await fetch("assets/rig.json")).json();
+const imgs = {};
+await Promise.all(data.layers.map(async (l) => {
+  const im = new Image(); im.src = l.file; await im.decode(); imgs[l.id] = im;
+}));
+const rig = new VtuberRig(data, imgs);
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d");
+const view = { scale: 520 / 1024 * 1.0, offsetX: 0, offsetY: 0 };
+view.scale = Math.min(520 / 1024, 780 / 1536);
+view.offsetX = 260 - 1024 * view.scale / 2;
+view.offsetY = 780 - 1536 * view.scale;
+
+let last = performance.now();
+window._tick = 0;
+function loop(now) {
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
+  tracker._lastVideoTime = -1; tracker._lastDetect = 0;   // test: detect every frame
+  const p = tracker.update(now + (++window._tick) * 50);
+  hud.textContent =
+    `present ${p.present}\nyaw   ${p.yaw.toFixed(1)}\npitch ${p.pitch.toFixed(1)}\nroll  ${p.roll.toFixed(1)}\n` +
+    `rig yaw ${rig.state?.yaw?.toFixed(2)} roll ${rig.state?.roll?.toFixed(2)}\n` +
+    `calib ${tracker._calibration.length} rs ${tracker.video?.readyState} t ${tracker.video?.currentTime?.toFixed(2)}`;
+  rig.update(dt, {
+    pointer: { x: Math.max(-1, Math.min(1, -p.yaw / 30)), y: Math.max(-1, Math.min(1, -p.pitch / 22)) },
+    talk: 0, energy: 1, roll: Math.max(-1, Math.min(1, -p.roll / 20)),
+  });
+  ctx.clearRect(0, 0, 520, 780);
+  ctx.fillStyle = "#2a2724"; ctx.fillRect(0, 0, 520, 780);
+  rig.draw(ctx, view);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script></body></html>

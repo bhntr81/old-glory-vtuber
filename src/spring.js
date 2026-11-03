@@ -10,7 +10,7 @@ export class Spring {
 
   update(dt) {
     // Clamp dt so a background tab doesn't explode the simulation.
-    const step = Math.min(dt, 1 / 20);
+    const step = Math.max(0, Math.min(dt, 1 / 20));
     const force = (this.target - this.value) * this.stiffness;
     this.velocity = (this.velocity + force * step) * Math.pow(this.damping, step * 60);
     this.value += this.velocity * step;

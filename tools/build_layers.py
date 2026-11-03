@@ -40,6 +40,22 @@ def poly_mask(size, polys, erode=0, feather=0.0):
     return m
 
 
+def solid_mask(size, polys, erode=0):
+    """Hard-edged source-resolution mask for opaque interiors.
+
+    This is intentionally not supersampled: it only fills pixels well inside
+    the hand-authored polygon, while the feathered poly_mask still owns the
+    outer silhouette.
+    """
+    m = Image.new("L", size, 0)
+    d = ImageDraw.Draw(m)
+    for poly in polys:
+        d.polygon(poly, fill=255)
+    if erode:
+        m = m.filter(ImageFilter.MinFilter(erode * 2 + 1))
+    return m
+
+
 def bbox_of(mask):
     return mask.getbbox()
 
@@ -69,37 +85,29 @@ def main():
         "name": "Old Glory",
         "source": {"width": size[0], "height": size[1]},
         "pivots": {k: list(v) for k, v in masks.PIVOTS.items()},
+        # Visible goggle glass, not the metal rim. The left ellipse is shifted
+        # right and kept small because the beak covers the lower-left of that
+        # lens; a lid drawn to these bounds cannot paint onto the mask fabric.
+        "eyes": [
+            {"cx": 402, "cy": 306, "rx": 24, "ry": 24},
+            {"cx": 500, "cy": 310, "rx": 28, "ry": 28},
+        ],
         "layers": [],
     }
 
     rendered = []
 
-    # Neck fill: a small blob behind the throat so a turning head never opens a
-    # hole. It sits entirely under the scarf at rest, so it can never ghost.
-    nw, nh = 210, 130
-    nx, ny = masks.PIVOTS["head"]
-    back_mask = Image.new("L", size, 0)
-    ImageDraw.Draw(back_mask).ellipse(
-        [nx - nw, ny - nh, nx + nw, ny + nh * 1.6], fill=255
-    )
-    back_mask = back_mask.filter(ImageFilter.GaussianBlur(26))
-    back_img = src.filter(ImageFilter.GaussianBlur(14))
-    back_img.putalpha(ImageChops.multiply(back_mask, silhouette))
-    bb = bbox_of(back_img.getchannel("A"))
-    if bb:
-        crop = back_img.crop(bb)
-        crop.save(os.path.join(OUT, "backfill.png"))
-        rig["layers"].append({
-            "id": "backfill", "file": "assets/layers/backfill.png",
-            "x": bb[0], "y": bb[1], "w": bb[2] - bb[0], "h": bb[3] - bb[1],
-            "pivot": [masks.PIVOTS["head"][0] - bb[0], masks.PIVOTS["head"][1] - bb[1]],
-            "z": 0,
-        })
-        rendered.append((crop, bb))
-
     for z, (layer_id, feather) in enumerate(masks.LAYERS, start=1):
         m = poly_mask(size, parts[layer_id], feather=feather)
+        # Some layers must stay opaque in their interior even where the matte
+        # mistakes pale cloth or a seam for smoke. This uses the hand polygon,
+        # not the matte, and is applied after silhouette clipping so a bad
+        # matte cannot punch a hole through it. Erosion keeps it well inside
+        # the feathered outer edge.
         m = ImageChops.multiply(m, silhouette)
+        solid_erode = masks.SOLID_CORE_ERODE.get(layer_id)
+        if solid_erode:
+            m = ImageChops.lighter(m, solid_mask(size, parts[layer_id], erode=solid_erode))
         layer = src.copy()
         layer.putalpha(m)
         bb = bbox_of(m)

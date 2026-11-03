@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Old Glory — browser VTuber rig</title>
-    <meta name="description" content="A layered, mouse-and-microphone driven VTuber rig built from a single illustration." />
+    <meta name="description" content="A layered VTuber rig driven by webcam head tracking and microphone, with a VRM 1.0 export." />
     <meta name="theme-color" content="#131211" />
     <link rel="stylesheet" href="src/style.css" />
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
@@ -23,6 +23,27 @@
 
     <div id="toast" role="status" aria-live="polite"></div>
 
+    <section id="face-panel" hidden aria-label="Head tracking">
+      <div class="face-head">
+        <div id="face-preview" aria-hidden="true"></div>
+        <div class="face-meta">
+          <span id="face-status" data-state="off">Camera off</span>
+          <span id="face-hint">F starts tracking</span>
+        </div>
+      </div>
+      <div class="face-row">
+        <label for="face-sens">Head</label>
+        <input id="face-sens" type="range" min="0.4" max="2.6" step="0.05" value="1" />
+      </div>
+      <div class="face-row">
+        <label for="face-limit">Limit</label>
+        <input id="face-limit" type="range" min="0.25" max="1" step="0.05" value="1" />
+      </div>
+      <button id="btn-center" title="Treat the current head pose as centre">
+        Center <span class="key">X</span>
+      </button>
+    </section>
+
     <div class="dock" role="toolbar" aria-label="Model controls">
       <button id="btn-mic" aria-pressed="false" title="Microphone lip-sync">
         <span class="dot" aria-hidden="true"></span>
@@ -31,9 +52,15 @@
       </button>
 
       <div class="sens">
-        <label for="sens">Sens</label>
+        <label for="sens">Mic</label>
         <input id="sens" type="range" min="0.6" max="6" step="0.1" value="2.2" />
       </div>
+
+      <button id="btn-face" aria-pressed="false" title="Webcam head tracking">
+        <span class="dot" aria-hidden="true"></span>
+        <span class="label">Face</span>
+        <span class="key">F</span>
+      </button>
 
       <div class="sep" aria-hidden="true"></div>
 
